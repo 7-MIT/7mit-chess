@@ -107,7 +107,7 @@
     if (result === '1/2-1/2') title = 'Remis';
     else {
       const winner = result === '1-0' ? 'w' : 'b';
-      if (S.mode === 'single' || S.mode === 'online') title = winner === S.my ? 'Kamu menang! 🎉' : (S.mode === 'single' ? 'Kamu kalah' : 'Kamu kalah');
+      if (S.mode === 'single' || S.mode === 'online') title = winner === S.my ? 'Kamu menang!' : (S.mode === 'single' ? 'Kamu kalah' : 'Kamu kalah');
       else title = winner === 'w' ? 'Putih menang!' : 'Hitam menang!';
     }
     return { title, why };
@@ -277,7 +277,7 @@
         const row = el('div', 'room'), g = el('div', 'grow');
         const host = r.white_name || r.black_name || '?';
         g.append(el('b', '', r.name), el('small', '', `${host} · bermain ${r.white_name ? 'Putih' : 'Hitam'} · ${tcLabel(r)} · kode ${r.code}`));
-        row.append(g, btn('Gabung', 'secondary', () => joinRoom(r.id, null)));
+        const jb = btn('', 'secondary', () => joinRoom(r.id, null)); jb.innerHTML = Icons.svg('swords') + ' Gabung'; row.append(g, jb);
         box.appendChild(row);
       }
     } catch (e) {
@@ -421,6 +421,7 @@
   $('#btn-refresh').onclick = refreshLobby;
   $('#btn-wait-cancel').onclick = () => { const n = S.net; stopNet(); if (n) ChessNet.leave(n.id).catch(() => {}); ChessNet.store('chess7_room', null); S.net = null; S.mode = null; show('online'); };
 
+  Icons.apply();
   $('#inp-name').value = ChessNet.store('chess7_name') || '';
   window.addEventListener('beforeunload', () => { /* room tetap, bisa dilanjutkan */ });
   resume();

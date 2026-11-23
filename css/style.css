@@ -87,3 +87,9 @@ h1{font-size:2rem;margin:.2em 0 0;text-align:center}h2{font-size:1.15rem;margin:
 .clock{font:700 1.15rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:74px;text-align:center}
 .player.turn .clock{background:var(--acc);border-color:var(--acc);color:#fff}
 .clock.low{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff}
+
+.ic{width:1.15em;height:1.15em;vertical-align:-.2em;flex:none}
+button:not(.big):has(.ic){display:inline-flex;align-items:center;justify-content:center;gap:.4em}
+.big span .ic{width:1.9rem;height:1.9rem;color:var(--acc)}
+.logo .ic{width:4.5rem;height:4.5rem;color:var(--acc);stroke-width:1.6}
+.pill .ic{width:1em;height:1em}
