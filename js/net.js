@@ -32,9 +32,9 @@
   const T = () => ({ p_token: token() });
   const api = {
     store, token,
-    create: (name, roomName, color, pub) => rpc('chess_create_room', { ...T(), p_name: name, p_room_name: roomName, p_color: color, p_public: pub }),
+    create: (name, roomName, color, pub, base, inc) => rpc('chess_create_room', { ...T(), p_name: name, p_room_name: roomName, p_color: color, p_public: pub, p_base: base, p_inc: inc }),
     join: (name, roomId, code) => rpc('chess_join_room', { ...T(), p_name: name, p_room_id: roomId || null, p_code: code || null }),
-    quick: name => rpc('chess_quick_match', { ...T(), p_name: name }),
+    quick: (name, base, inc) => rpc('chess_quick_match', { ...T(), p_name: name, p_base: base, p_inc: inc }),
     sync: roomId => rpc('chess_sync', { ...T(), p_room_id: roomId }),
     move: (roomId, fen, san, from, to, result, reason) => rpc('chess_move', { ...T(), p_room_id: roomId, p_fen: fen, p_san: san, p_from: from, p_to: to, p_result: result, p_reason: reason }),
     resign: roomId => rpc('chess_resign', { ...T(), p_room_id: roomId }),

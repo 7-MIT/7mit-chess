@@ -9,7 +9,7 @@
   const REASON = {
     checkmate: 'Skakmat', stalemate: 'Stalemate', insufficient: 'Material tidak cukup', fifty: 'Aturan 50 langkah',
     repetition: 'Pengulangan posisi 3x', resign: 'Menyerah', left: 'Lawan meninggalkan game',
-    'draw-agreed': 'Remis disepakati', abandon: 'Lawan terputus'
+    'draw-agreed': 'Remis disepakati', abandon: 'Lawan terputus', timeout: 'Waktu habis'
   };
 
   const S = {
@@ -17,7 +17,9 @@
     thinking: false, aiToken: 0, over: false,
     net: null // {id, room, pending, busy, fails, timer, offlineSince, endShown}
   };
-  const opt = { level: '2', color: 'w', ocolor: 'r' };
+  const opt = { level: '2', color: 'w', ocolor: 'r', tc: '300,0' };
+  const tcOf = () => opt.tc.split(',').map(Number);
+  const tcLabel = r => r.tc_base ? `${r.tc_base / 60}|${r.tc_inc}` : 'tanpa jam';
 
   /* ---------- util ---------- */
   function show(name) {
@@ -65,7 +67,7 @@
       if (v === 7) { const f = el('span', 'coord f', 'abcdefgh'[idx & 7]); d.appendChild(f); }
       if (b[idx]) d.appendChild(el('span', 'pc ' + (isWhite(b[idx]) ? 'w' : 'b'), glyph(b[idx])));
     }
-    renderMoves(); renderPlayers(); renderStatus();
+    renderMoves(); renderPlayers(); renderStatus(); if (S.mode === 'online') renderClocks(); else $$('.clock').forEach(c => c.classList.add('hidden'));
     $('#btn-undo').disabled = S.mode === 'online' || g.history.length === 0 || S.thinking;
   }
   function renderMoves() {
@@ -110,6 +112,29 @@
     }
     return { title, why };
   }
+  function clockMs(color) {
+    const n = S.net, r = n.room;
+    let ms = color === 'w' ? r.white_ms : r.black_ms;
+    if (r.status === 'playing' && r.turn === color && r.clock_at) ms -= Date.now() + n.offset - Date.parse(r.clock_at);
+    return Math.max(0, ms);
+  }
+  function fmt(ms) {
+    if (ms < 10000) return (ms / 1000).toFixed(1);
+    const s = Math.ceil(ms / 1000), m = Math.floor(s / 60);
+    return m + ':' + String(s % 60).padStart(2, '0');
+  }
+  function renderClocks() {
+    const on = S.mode === 'online' && S.net && S.net.room && S.net.room.tc_base > 0;
+    const bottom = bottomColor();
+    for (const [id, col] of [['#pl-top', bottom === 'w' ? 'b' : 'w'], ['#pl-bottom', bottom]]) {
+      const c = $(id + ' .clock'); c.classList.toggle('hidden', !on);
+      if (!on) continue;
+      const ms = clockMs(col); c.textContent = fmt(ms); c.classList.toggle('low', ms < 10000 && S.net.room.status === 'playing');
+    }
+    if (on && S.net.room.status === 'playing' && !S.net.waiting && !S.net.pending && (clockMs('w') === 0 || clockMs('b') === 0)) pollOnline();
+  }
+  setInterval(() => { if (S.mode === 'online' && S.net && !S.net.waiting) renderClocks(); }, 100);
+
   function renderStatus() {
     const st = $('#status'), g = S.game;
     st.classList.toggle('end', S.over);
@@ -158,7 +183,7 @@
       const n = S.net; n.pending = true;
       render();
       ChessNet.move(n.id, g.fen(), san, sqName(m.from), sqName(m.to), st.over ? st.result : null, st.over ? st.reason : null)
-        .then(room => { n.pending = false; applyRoom(room); })
+        .then(room => { n.pending = false; if (room.now) n.offset = room.now - Date.now(); applyRoom(room); })
         .catch(e => { n.pending = false; toast('Gagal kirim langkah: ' + e.message); g.undo(); render(); pollOnline(); });
       return;
     }
@@ -251,7 +276,7 @@
       for (const r of rooms) {
         const row = el('div', 'room'), g = el('div', 'grow');
         const host = r.white_name || r.black_name || '?';
-        g.append(el('b', '', r.name), el('small', '', `${host} · bermain ${r.white_name ? 'Putih' : 'Hitam'} · kode ${r.code}`));
+        g.append(el('b', '', r.name), el('small', '', `${host} · bermain ${r.white_name ? 'Putih' : 'Hitam'} · ${tcLabel(r)} · kode ${r.code}`));
         row.append(g, btn('Gabung', 'secondary', () => joinRoom(r.id, null)));
         box.appendChild(row);
       }
@@ -266,13 +291,13 @@
   }
   function beginOnline(res, waiting) {
     S.mode = 'online'; S.my = res.color;
-    S.net = { id: res.room.id, room: res.room, pending: false, busy: false, fails: 0, timer: null, offlineSince: 0, endShown: false, waiting };
+    S.net = { offset: res.now ? res.now - Date.now() : 0, id: res.room.id, room: res.room, pending: false, busy: false, fails: 0, timer: null, offlineSince: 0, endShown: false, waiting };
     ChessNet.store('chess7_room', res.room.id);
     S.game = new Game(); S.over = false;
     if (res.room.status === 'playing' || res.room.status === 'finished') enterOnlineGame();
     else {
       waitScreen(res.room.mode === 'auto' ? 'Mencari lawan…' : 'Menunggu lawan…',
-        res.room.mode === 'auto' ? 'Kamu akan dipasangkan otomatis dengan pemain lain.' : `Server "${res.room.name}" · kamu bermain ${S.my === 'w' ? 'Putih' : 'Hitam'}. Bagikan kode ini:`,
+        res.room.mode === 'auto' ? 'Kamu akan dipasangkan otomatis dengan pemain lain.' : `Server "${res.room.name}" · ${tcLabel(res.room)} · kamu bermain ${S.my === 'w' ? 'Putih' : 'Hitam'}. Bagikan kode ini:`,
         res.room.mode === 'auto' ? '' : res.room.code);
     }
     startNet();
@@ -291,7 +316,7 @@
       if (!S.net || S.net !== n) return;
       if (!r) { toast('Room sudah tidak ada'); ChessNet.store('chess7_room', null); stopNet(); S.net = null; S.mode = null; show('online'); return; }
       if (n.pending) return;
-      n.oppOnline = r.opp_online;
+      n.oppOnline = r.opp_online; if (r.now) n.offset = r.now - Date.now();
       if (n.waiting && r.room.status !== 'waiting') { n.room = r.room; enterOnlineGame(); }
       else if (!n.waiting) applyRoom(r.room);
       updateConn();
@@ -355,7 +380,7 @@
       $$(id + ' button').forEach(x => x.classList.toggle('on', x === b)); opt[key] = b.dataset.v; if (cb) cb();
     });
   }
-  seg('#seg-level', 'level'); seg('#seg-color', 'color'); seg('#seg-ocolor', 'ocolor');
+  seg('#seg-level', 'level'); seg('#seg-tc', 'tc'); seg('#seg-color', 'color'); seg('#seg-ocolor', 'ocolor');
   document.querySelector('[data-go=local]').addEventListener('click', e => { e.stopPropagation(); startMode('local'); });
   $('#btn-start-single').onclick = () => startMode('single');
   $('#btn-leave').onclick = () => leaveGame();
@@ -383,13 +408,13 @@
 
   $('#btn-auto').onclick = async () => {
     const name = getName(); $('#btn-auto').disabled = true;
-    const res = await guarded(() => ChessNet.quick(name));
+    const res = await guarded(() => ChessNet.quick(name, ...tcOf()));
     $('#btn-auto').disabled = false;
     if (res) beginOnline(res, res.room.status === 'waiting');
   };
   $('#btn-create').onclick = async () => {
     const name = getName();
-    const res = await guarded(() => ChessNet.create(name, $('#inp-room').value, opt.ocolor === 'r' ? 'r' : opt.ocolor, $('#chk-public').checked));
+    const res = await guarded(() => ChessNet.create(name, $('#inp-room').value, opt.ocolor === 'r' ? 'r' : opt.ocolor, $('#chk-public').checked, ...tcOf()));
     if (res) beginOnline(res, true);
   };
   $('#btn-join-code').onclick = () => { const c = $('#inp-code').value.trim(); if (c.length < 5) return toast('Masukkan 5 karakter kode'); joinRoom(null, c); };

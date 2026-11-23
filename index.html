@@ -45,6 +45,11 @@
     <div class="card">
       <label for="inp-name">Nama kamu</label>
       <input id="inp-name" maxlength="20" placeholder="Nama pemain" autocomplete="nickname">
+      <label>Kontrol waktu (menit | tambahan detik)</label>
+      <div class="seg wrap" id="seg-tc">
+        <button data-v="0,0">Tanpa jam</button><button data-v="180,2">3|2</button><button data-v="300,0" class="on">5|0</button>
+        <button data-v="600,0">10|0</button><button data-v="900,10">15|10</button>
+      </div>
       <button class="primary" id="btn-auto">⚡ Cari Lawan Otomatis (PvP)</button>
     </div>
     <div class="card">
@@ -86,9 +91,9 @@
     </header>
     <div class="game">
       <div class="boardwrap">
-        <div class="player top" id="pl-top"><span class="pname"></span><span class="captured"></span></div>
+        <div class="player top" id="pl-top"><span class="pname"></span><span class="captured"></span><span class="clock hidden"></span></div>
         <div id="board" class="board" aria-label="Papan catur"></div>
-        <div class="player bottom" id="pl-bottom"><span class="pname"></span><span class="captured"></span></div>
+        <div class="player bottom" id="pl-bottom"><span class="pname"></span><span class="captured"></span><span class="clock hidden"></span></div>
       </div>
       <aside class="side">
         <div id="status" class="status">Giliran Putih</div>

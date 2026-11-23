@@ -80,3 +80,10 @@ h1{font-size:2rem;margin:.2em 0 0;text-align:center}h2{font-size:1.15rem;margin:
   .moves{height:96px}.actions{grid-template-columns:repeat(3,1fr)}
   .pc{font-size:11vw}
 }
+
+.seg.wrap{flex-wrap:wrap}.seg.wrap button{flex:1 0 30%}
+.player .pname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player .captured{margin:0 10px}
+.clock{font:700 1.15rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:74px;text-align:center}
+.player.turn .clock{background:var(--acc);border-color:var(--acc);color:#fff}
+.clock.low{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff}
