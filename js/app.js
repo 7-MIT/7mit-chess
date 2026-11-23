@@ -48,6 +48,42 @@
 
   function bottomColor() { return S.mode === 'local' ? (S.flip ? 'b' : 'w') : (S.flip ? (S.my === 'w' ? 'b' : 'w') : S.my); }
 
+  const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sqEl = idx => squares.find(s => s._idx === idx);
+  function slide(from, to) {
+    const a = sqEl(from), b = sqEl(to); if (!a || !b) return;
+    const pc = b.querySelector('.pc'); if (!pc) return;
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    b.style.zIndex = 6;
+    const an = pc.animate([{ transform: `translate(${ra.left - rb.left}px, ${ra.top - rb.top}px) scale(1.12)` }, { transform: 'translate(0,0) scale(1)' }],
+      { duration: 260, easing: 'cubic-bezier(.22,.9,.3,1)' });
+    an.onfinish = an.oncancel = () => { b.style.zIndex = ''; };
+  }
+  function animateMove(m) {
+    slide(m.from, m.to);
+    if (m.castle) m.castle === 'K' ? slide(m.from + 3, m.from + 1) : slide(m.from - 4, m.from - 1);
+    if (m.captured) {
+      const at = sqEl(m.enpassant ? m.to + (isWhite(m.piece) ? 8 : -8) : m.to);
+      if (at) {
+        const gh = el('span', 'pc ghost ' + (isWhite(m.captured) ? 'w' : 'b'), glyph(m.captured));
+        at.appendChild(gh);
+        gh.animate([{ opacity: 1, transform: 'scale(1) rotate(0)' }, { opacity: 0, transform: 'scale(.4) rotate(40deg)' }], { duration: 380, easing: 'ease-in', fill: 'forwards' }).onfinish = () => gh.remove();
+      }
+    }
+  }
+  function confetti() {
+    if (REDUCED) return;
+    const box = el('div', 'confetti'); document.body.appendChild(box);
+    const colors = ['#6c8cff', '#4fd1a1', '#ffd60a', '#ff6b6b', '#fff'];
+    for (let i = 0; i < 70; i++) {
+      const p = el('i', 'cf'); p.style.left = Math.random() * 100 + '%'; p.style.background = colors[i % colors.length];
+      box.appendChild(p);
+      p.animate([{ transform: 'translateY(-10vh) rotate(0)', opacity: 1 }, { transform: `translate(${(Math.random() - .5) * 200}px, 105vh) rotate(${Math.random() * 900}deg)`, opacity: .9 }],
+        { duration: 1800 + Math.random() * 1600, delay: Math.random() * 500, easing: 'cubic-bezier(.3,.1,.6,1)', fill: 'forwards' });
+    }
+    setTimeout(() => box.remove(), 4200);
+  }
+
   function render() {
     const g = S.game, b = g.board(), bottom = bottomColor();
     const last = g.lastMove();
@@ -67,6 +103,13 @@
       if (v === 7) { const f = el('span', 'coord f', 'abcdefgh'[idx & 7]); d.appendChild(f); }
       if (b[idx]) d.appendChild(el('span', 'pc ' + (isWhite(b[idx]) ? 'w' : 'b'), glyph(b[idx])));
     }
+    // ---- animasi ----
+    const nHist = g.history.length;
+    if (S.intro) {
+      S.intro = false;
+      if (!REDUCED) squares.forEach((d, i) => { const pc = d.querySelector('.pc'); if (pc) { pc.style.animation = 'drop .5s both cubic-bezier(.2,.9,.3,1.25)'; pc.style.animationDelay = (i * 9) + 'ms'; } });
+    } else if (S.prevLen !== undefined && nHist === S.prevLen + 1 && last && !REDUCED) animateMove(last);
+    S.prevLen = nHist;
     renderMoves(); renderPlayers(); renderStatus(); if (S.mode === 'online') renderClocks(); else $$('.clock').forEach(c => c.classList.add('hidden'));
     $('#btn-undo').disabled = S.mode === 'online' || g.history.length === 0 || S.thinking;
   }
@@ -196,6 +239,7 @@
   }
   function endModal(st) {
     const t = resultText(st.result, st.reason);
+    if (st.result !== '1/2-1/2' && (S.mode === 'local' || (st.result === '1-0') === (S.my === 'w'))) setTimeout(confetti, 250);
     modal(box => {
       box.append(el('h2', '', t.title), el('p', '', t.why || 'Permainan selesai'));
       const b = el('div', 'btns');
@@ -236,7 +280,7 @@
   }
   function newGame() {
     S.aiToken++; S.thinking = false;
-    S.game = new Game();
+    S.game = new Game(); S.prevLen = undefined; S.intro = true;
     if (S.mode === 'single') { S.my = opt.color === 'r' ? (Math.random() < .5 ? 'w' : 'b') : opt.color; }
     setupGameUI(); show('game'); render();
     if (S.mode === 'single' && S.my === 'b') aiMove();
@@ -303,7 +347,7 @@
     startNet();
   }
   function enterOnlineGame() {
-    S.net.waiting = false; setupGameUI(); show('game'); applyRoom(S.net.room, true);
+    S.net.waiting = false; S.prevLen = undefined; S.intro = true; setupGameUI(); show('game'); applyRoom(S.net.room, true);
   }
   function startNet() { stopNet(); S.net.timer = setInterval(pollOnline, 1000); pollOnline(); }
   function stopNet() { if (S.net && S.net.timer) { clearInterval(S.net.timer); S.net.timer = null; } }
@@ -337,6 +381,8 @@
     const n = S.net; if (!n || !room) return;
     n.room = room;
     const mv = room.moves || [];
+    const sig = [room.fen, room.status, room.result, room.draw_offer, room.white_name, room.black_name, mv.length].join('|');
+    const same = !force && sig === n.sig; n.sig = sig;
     const changed = force || mv.length !== S.game.history.length || S.game.fen() !== room.fen;
     if (changed) {
       const g = new Game();
@@ -352,10 +398,10 @@
     $('#btn-resign').disabled = room.status !== 'playing';
     if (room.status === 'finished') {
       S.over = true; S.endInfo = { result: room.result, reason: room.reason };
-      render();
+      if (!same) render();
       if (!n.endShown) { n.endShown = true; stopNet(); ChessNet.store('chess7_room', null); endModal(S.endInfo); }
       $('#btn-claim').classList.add('hidden'); $('#game-conn').classList.add('hidden');
-    } else { S.over = false; render(); }
+    } else { S.over = false; if (!same) render(); }
   }
   async function guarded(fn) { try { return await fn(); } catch (e) { toast(e.message || 'Terjadi kesalahan'); } }
   async function joinRoom(id, code) {
